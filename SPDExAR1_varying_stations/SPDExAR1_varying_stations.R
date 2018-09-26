@@ -5,13 +5,13 @@ library(dplyr) #use image.plot()
 library(animation) #use saveGIF()
 
 #Comile and load c++ code-------
-compile("SPDExAR1_varying_stations.cpp")
-dyn.load(dynlib("SPDExAR1_varying_stations"))
+compile("./SPDExAR1_varying_stations/SPDExAR1_varying_stations.cpp")
+dyn.load(dynlib("./SPDExAR1_varying_stations/SPDExAR1_varying_stations"))
 #--------------------------------
 
 #Read data------------
-borders <-read.table("Piemonte_borders.csv",header=TRUE,sep=",")
-Piemonte_data <-read.table("Piemonte_data_byday.csv",header=TRUE,sep=",")
+borders <-read.table("./SPDExAR1_varying_stations/Piemonte_borders.csv",header=TRUE,sep=",")
+Piemonte_data <-read.table("./SPDExAR1_varying_stations/Piemonte_data_byday.csv",header=TRUE,sep=",")
 #Convert dates to POSIX
 Piemonte_data$Date <- as.Date(Piemonte_data$Date, format="%d/%m/%y")
 #Order the Piemonte data by date
@@ -77,7 +77,7 @@ Piemonte_data$day <- difftime(Piemonte_data$Date, min(Piemonte_data$Date), units
 dtLength = 21#Length of time intervalls
 #dtLength = 7#Length of time intervalls
 Piemonte_data$dt = floor(Piemonte_data$day/dtLength)
-lengthDt = sum(Piemonte_data$dt==0)#Number of observations within each time intervall
+lengthDt = sum(Piemonte_data$dt==1)#Number of observations within each time intervall
 #maxDt = max(Piemonte_data$dt)+1
 maxDt = max(as.numeric(Piemonte_data$dt))+1
 #---------------------------------------------------------

@@ -48,6 +48,7 @@ Type objective_function<Type>::operator() (){
   vector<Type> splineForReport = designMatrixForReport*beta;
   ADREPORT(splineForReport);
   ADREPORT(beta);
+  ADREPORT(mu);
 
   return nll;
 }
