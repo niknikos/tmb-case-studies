@@ -23,7 +23,8 @@ tweak_index <- which(Piemonte_data$Station.ID %in% c(2,10,15,21))
 Piemonte_data[tweak_index,'UTMX'] <- Piemonte_data[tweak_index,'UTMX']+runif(length(tweak_index),-10,10)
 Piemonte_data[tweak_index,'UTMY'] <- Piemonte_data[tweak_index,'UTMY']+runif(length(tweak_index),-10,10)
 
-#Additionally remove some stations from some days (arbitrarily)
+#Additionally remove some stations from some days (arbitrarily) so as the number of stations per day is not the same anymore
+set.seed(123)
 drop_stations_index <- sample.int(nrow(Piemonte_data), 1000)
 
 Piemonte_data <- Piemonte_data[-drop_stations_index,]
@@ -70,16 +71,16 @@ Piemonte_data$logPM10[which(is.na(Piemonte_data$logPM10))]=-999
 # }
 
 #This now can be done in a different way
-Piemonte_data$day <- difftime(Piemonte_data$Date, min(Piemonte_data$Date), units="days")
+Piemonte_data$day <- as.numeric(difftime(Piemonte_data$Date, min(Piemonte_data$Date), units="days"))
 #---------------------------------------------------------
 
 #Group the days into intervalls used as time steps in the AR1 process--------
 dtLength = 21#Length of time intervalls
 #dtLength = 7#Length of time intervalls
 Piemonte_data$dt = floor(Piemonte_data$day/dtLength)
-lengthDt = sum(Piemonte_data$dt==1)#Number of observations within each time intervall
+#lengthDt = sum(Piemonte_data$dt==1)#Number of observations within each time intervall
 #maxDt = max(Piemonte_data$dt)+1
-maxDt = max(as.numeric(Piemonte_data$dt))+1
+maxDt = max(Piemonte_data$dt)+1
 #---------------------------------------------------------
 
 #Defines the GMRF and represenation of the sparce precision matrix------
@@ -100,12 +101,12 @@ mesh =
 spde = inla.spde2.matern(mesh=mesh, alpha=2)
 spdeMatrices = spde$param.inla[c("M0","M1","M2")]
 A = inla.spde.make.A(mesh,locStations)
-aLoc = rep((1:dim(locStations)[1]),dtLength)-1
+#aLoc = rep((1:dim(locStations)[1]),dtLength)-1
 #---------------------------------------------------------
 
 #Plot the triangulation-----------------------------------
 plot(mesh)
-lines(borders, lwd=3)
+lines(borders, lwd=1)
 points(locStations, pch=20, cex=1, col=2)
 #---------------------------------------------------------
 
@@ -118,10 +119,10 @@ X <- model.matrix( ~ 1 + Piemonte_data$A + Piemonte_data$UTMX + Piemonte_data$UT
 #Define data and parameter object--------------------
 data <- list(logPM10 = Piemonte_data$logPM10,
              n_data = n_data,
-             lengthDt = lengthDt,
+             #lengthDt = lengthDt,
              maxDt = maxDt,
              A = A,
-             aLoc = aLoc,
+             #aLoc = aLoc,
              X = as.matrix(X),
              spdeMatrices = spdeMatrices,
              time_index = as.integer(Piemonte_data$dt)

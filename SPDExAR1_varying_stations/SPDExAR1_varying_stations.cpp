@@ -13,10 +13,10 @@ Type objective_function<Type>::operator() ()
   DATA_MATRIX(X); //Design matrix for fixed effects
   DATA_INTEGER(n_data); //Number of data points
   DATA_INTEGER(maxDt);//Number of intervalls in the AR1 structure
-  DATA_INTEGER(lengthDt); //Length of time intervalls in the AR1 strucutre
+  //DATA_INTEGER(lengthDt); //Length of time intervalls in the AR1 strucutre
   DATA_STRUCT(spdeMatrices,spde_t);//The three matrices from R-INLA which defines the sparce spatial precision structure.
   DATA_SPARSE_MATRIX(A);//Matrix for interpolating points within triangles
-  DATA_VECTOR(aLoc); //Help variable for interpoalation of points within triangles
+  //DATA_VECTOR(aLoc); //Help variable for interpoalation of points within triangles
   DATA_IVECTOR(time_index); //Starts from 0 and goes up to lenth of time steps
   DATA_INTEGER(flag); // flag=0 => only prior retuned, used when we normalize outside of C++
   //-----------------------
