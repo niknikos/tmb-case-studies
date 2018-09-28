@@ -62,7 +62,7 @@ Type objective_function<Type>::operator() ()
       // Type mu;
     vector<Type> tmp1 = A.row(i);
     vector<Type> tmp2 = x.col(time_index(i));
-    Type mu = 0;
+    Type mu = eta(i);
     for(int j = 0; j<tmp2.size(); ++j){
       mu+=tmp1(j)*tmp2(j)/tau;
     }
