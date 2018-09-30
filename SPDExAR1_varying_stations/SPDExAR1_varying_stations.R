@@ -11,26 +11,34 @@ dyn.load(dynlib("./SPDExAR1_varying_stations/SPDExAR1_varying_stations"))
 data(PRborder)
 k <- 12
 data(PRprec)
-coords <- as.matrix(PRprec[sample(1:nrow(PRprec)), 1:2])
+PRprec <- as.data.frame(PRprec)
+set.seed(1)
+#coords <- as.matrix(PRprec[sample(1:(nrow(PRprec)/30)), 1:2])
+plot(coords)
+
 source('./SPDExAR1_varying_stations/spde-book-functions.R')
 params <- c(variance = 1, kappa = 1)
 prdomain <- inla.nonconvex.hull(as.matrix(PRprec[, 1:2]),
                                 convex = -0.03, concave = -0.05,
                                 resolution = c(100, 100))
-prmesh1 <- inla.mesh.2d(boundary = prdomain,
-                        max.edge = c(0.7, 0.7), cutoff = 0.35,
-                        offset = c(-0.05, -0.05))
 
+prdomain <- inla.nonconvex.hull(as.matrix(testdata[, 1:2]))
+
+prmesh1 <- inla.mesh.2d(boundary = prdomain,
+                        max.edge = c(0.3, 0.7))
+plot(prmesh1, asp=1)
 set.seed(1)
+testdata$x <- rnorm(nrow(testdata),10,0.1)
+
 x.k <- book.rspde(coords, range = sqrt(8) / params[2],
                   sigma = sqrt(params[1]), n = k, mesh = prmesh1,
-                  return.attributes = TRUE)
+                  return.attributes = FALSE)
 dim(x.k)
-
+#x.k
 c100 <- rainbow(101)
 par(mfrow=c(4,3), mar=c(0,0,0,0))
 for (j in 1:k)
-  plot(coords, col=c100[round(100*(x[,j]-min(x[,j]))/diff(range(x[,j])))],
+  plot(coords, col=c100[round(100*(x.k[,j]-min(x.k[,j]))/diff(range(x.k[,j])))],
        axes=FALSE, asp=1, pch=19, cex=0.5)
 
 rho <- 0.7
@@ -38,29 +46,36 @@ x <- x.k
 for (j in 2:k)
   x[, j] <- rho * x[, j - 1] + sqrt(1 - rho^2) * x.k[, j]
 
-n <- nrow(coords)
-set.seed(2)
-# ccov <- factor(sample(LETTERS[1:3], n * k, replace = TRUE))
-# table(ccov)
-# beta <- -1:1
-x2 <- rnorm(n * k, 10, 1)
-sd.y <- 0.1
-#y <- beta[unclass(ccov)] + x + rnorm(n * k, 0, sd.y)
-y <- x + 2*x2 + rnorm(n * k, 0, sd.y)
+c100 <- rainbow(101)
+par(mfrow=c(4,3), mar=c(0,0,0,0))
+for (j in 1:k)
+  plot(coords, col=c100[round(100*(x[,j]-min(x[,j]))/diff(range(x[,j])))],
+       axes=FALSE, asp=1, pch=19, cex=0.5)
 
+n <- nrow(coords)
+#set.seed(1)
+#ccov <- factor(sample(LETTERS[1:3], n * k, replace = TRUE))
+#table(ccov)
+#beta <- -1:1
+#x2 <- rnorm(n * k, 10, 1)
+sd.y <- 0.5
+#y <- beta[unclass(ccov)] + x + rnorm(n * k, 10, sd.y)
+y <- 2*x + rnorm(n * k, 0, sd.y)
+testdata$y <- 2*testdata$x + rnorm(106, 5, sd.y)
 #tapply(y, ccov, mean)
 
 isel <- sample(1:(n * k), n * k / 2)
 dat <- data.frame(y = as.vector(y),
-                  x2 = x2,
+                  x = as.vector(x),
                   #w = ccov,
                   time = rep(1:k, each = n),
                   xcoo = rep(coords[, 1], k),
-                  ycoo = rep(coords[, 2], k))[isel, ]
+                  ycoo = rep(coords[, 2], k),
+                  Station.ID = as.factor(rep((1:nrow(coords)),k)))[isel,]
 
-dat <- dat[order(dat$time),]
+dat <- dat[order(dat$time,dat$Station.ID),]
 rownames(dat) <- 1:nrow(dat)
-
+#table(dat$Station.ID)
 #Read data------------
 borders <-read.table("./SPDExAR1_varying_stations/Piemonte_borders.csv",header=TRUE,sep=",")
 Piemonte_data <-read.table("./SPDExAR1_varying_stations/Piemonte_data_byday.csv",header=TRUE,sep=",")
@@ -104,13 +119,14 @@ n_days <- length(unique(Piemonte_data$Date))
 
 # #dat
 #n_stations <- length(coordinates$Station.ID)
-n_stations2 <- as.data.frame(dat %>% count(time))
-n_stations2 <- n_stations2[order(n_stations2$time),]
+n_stations2 <- as.data.frame(testdata %>% count(Station))
+#length(n_stations2$Station.ID)==nrow(coords)
+#n_stations2 <- n_stations2[order(n_stations2$time),]
 n_stations2 <- n_stations2[,2] # Vector with number of stations sampled per day
-
-n_data2 <- length(dat$y)
+#min(n_stations2)
+n_data2 <- length(testdata$y)
 #n_days <- as.integer(n_data/n_stations)
-n_days2 <- length(unique(dat$time))
+n_days2 <- length(unique(testdata$time))
 
 #--------------------------------
 
@@ -134,14 +150,16 @@ Piemonte_data$logPM10[which(is.na(Piemonte_data$logPM10))]=-999
 
 #This now can be done in a different way
 Piemonte_data$day <- as.numeric(difftime(Piemonte_data$Date, min(Piemonte_data$Date), units="days"))
-dat$day <- dat$time-1
+testdata$day <- testdata$time-1
+
 #---------------------------------------------------------
 
 #Group the days into intervalls used as time steps in the AR1 process--------
 dtLength = 21#Length of time intervalls
-dtLength2 = 1#Length of time intervalls
+dtLength2 = 2#Length of time intervalls
 Piemonte_data$dt = floor(Piemonte_data$day/dtLength)
-dat$dt = dat$day
+testdata$dt = floor(testdata$day/dtLength2)
+#dat$dt = dat$day
 #lengthDt = sum(Piemonte_data$dt==0)#Number of observations within each time intervall
 #lengthDt <- as.data.frame(Piemonte_data %>% group_by(dt) %>% count(Station.ID))
 #lengthDt <- lengthDt[,3]
@@ -149,7 +167,7 @@ dat$dt = dat$day
 #lengthDt2 <- lengthDt2[,3]
 
 maxDt = max(Piemonte_data$dt)+1
-maxDt2 = max(as.numeric(dat$dt))+1
+maxDt2 = max(as.numeric(testdata$dt))+1
 #---------------------------------------------------------
 
 #Defines the GMRF and represenation of the sparce precision matrix------
@@ -175,7 +193,7 @@ A = inla.spde.make.A(mesh,locStations)
 
 
 # 
-locStations2 = coords
+locStations2 = cbind(testdata$XCOO,testdata$YCOO)
 
 mesh2 =
   prmesh1
@@ -192,7 +210,7 @@ plot(mesh)
 lines(borders, lwd=3)
 points(locStations, pch=20, cex=1, col=2)
 # 
-plot(mesh2)
+plot(mesh2, asp=1)
 lines(prdomain, lwd=3)
 points(locStations2, pch=20, cex=1, col=2)
 #---------------------------------------------------------
@@ -202,7 +220,7 @@ X <- model.matrix( ~ 1 + Piemonte_data$A + Piemonte_data$UTMX + Piemonte_data$UT
                      Piemonte_data$WS + Piemonte_data$TEMP + Piemonte_data$HMIX +
                      Piemonte_data$PREC + Piemonte_data$EMI , data = Piemonte_data)
 
-X2 <- model.matrix( ~ 1 + dat$x2 , data = dat)
+X2 <- model.matrix( ~ 1 + x1 + x2 , data = testdata)
 #-----------------------------------------------------
 
 #Define data and parameter object--------------------
@@ -224,7 +242,7 @@ parameters <- list(beta      = c(3,rep(0,8)),
                    x  = array(0,dim = c(mesh$n,maxDt)),
                    logSigmaE = -1)
 
-data2 <- list(logPM10 = dat$y,
+data <- list(logPM10 = testdata$y,
              #n_data = n_data2,
              #lengthDt = lengthDt2,
              maxDt = maxDt2,
@@ -232,10 +250,10 @@ data2 <- list(logPM10 = dat$y,
              #aLoc = aLoc2,
              X = as.matrix(X2),
              spdeMatrices2 = spdeMatrices2,
-             time_index2 = as.integer(dat$dt)
+             time_index2 = as.integer(testdata$dt)
 )
 
-parameters2 <- list(beta      = c(2),
+parameters <- list(beta      = c(0,0,0),
                    log_tau   = 4,
                    log_kappa = -4,
                    rhoTan = 0,
@@ -246,10 +264,11 @@ parameters2 <- list(beta      = c(2),
 
 #Fit model with SEPARABLE formulation-----------------
 startTime <- Sys.time()
-#data$flag = 1
-data2$flag = 1
-
-obj <- TMB::MakeADFun(data2,parameters2,random = c("x"),DLL = "SPDExAR1_varying_stations")
+data$flag = 1
+#data2$flag = 1
+map=list(log_tau=factor(NA),log_kappa=factor(NA),rhoTan=factor(NA), logSigmaE=factor(NA), x=factor(rep(NA, length(array(0,dim = c(mesh2$n,maxDt2)))))) #shut down spatial field and AR1
+#map=list()
+obj <- TMB::MakeADFun(data, parameters, random = c("x"),DLL = "SPDExAR1_varying_stations", map = map)
 obj <- normalize(obj, flag="flag")
 opt<-stats::nlminb(obj$par,obj$fn,obj$gr,control=list(eval.max=1000, iter.max=1000))
 rep<- sdreport(obj)
