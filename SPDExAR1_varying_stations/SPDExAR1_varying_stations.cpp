@@ -62,9 +62,9 @@ Type objective_function<Type>::operator() ()
       // Type mu;
     vector<Type> tmp1 = A.row(i);
     vector<Type> tmp2 = x.col(time_index(i));
-    Type mu = eta(i);
+    //Type mu = eta(i);
     for(int j = 0; j<tmp2.size(); ++j){
-      mu+=tmp1(j)*tmp2(j)/tau;
+      eta(i)+=tmp1(j)*tmp2(j)/tau;
     }
       // mu = eta(counter) + gammaDt(CppAD::Integer(aLoc(j)))/tau;
       // mu = eta(i) + (A.row(i)*vector<Type> (x.col(time_index(i))))/tau;
@@ -73,7 +73,7 @@ Type objective_function<Type>::operator() ()
       //    nll -= dnorm(logPM10(counter), mu, sigmaE,true);
       // }
       if(logPM10(i)>(-99)){
-          nll -= dnorm(logPM10(i), mu, sigmaE,true);
+          nll -= dnorm(logPM10(i), eta(i), sigmaE,true);
        }
       // counter++;
     }
@@ -81,6 +81,7 @@ Type objective_function<Type>::operator() ()
   //---------------------------------------------
 
   //Report what we want to report----------------
+  REPORT(eta);
   Type range = sqrt(8)/kappa;   //Distance at which correlation has dropped to 0.1, see p. 4 in Lindgren et al. (2011)
   ADREPORT(range);
   //---------------------------------------------
