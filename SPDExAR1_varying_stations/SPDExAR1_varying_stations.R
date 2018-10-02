@@ -361,7 +361,8 @@ saveGIF({
 # Testdata example
 #Read data------------
 testdata <- read.table('./SPDExAR1_varying_stations/testdata.csv',header = T,sep = ',',row.names = 1)
-
+set.seed(123)
+testdata$PM10[sample(1:nrow(testdata),40,replace = T)] <- 0
 #Coordinates are no longer same for all days and stations 
 coordinates2 <- testdata[, colnames(testdata) %in% c("UTMX", "UTMY")]
 
@@ -432,12 +433,14 @@ data2 <- list(logPM10 = testdata$PM10,
              time_index = as.integer(testdata$dt)
 )
 
-parameters2 <- list(beta      = c(25,rep(0,2)),
+parameters2 <- list(beta      = c(rep(0,3)),
                    log_tau   = 1,
                    log_kappa = 1,
+                   log_p = log(1.5),
+                   log_phi = 0,
                    rhoTan = 0.3,
-                   x  = array(0,dim = c(mesh2$n,maxDt2)),
-                   logSigmaE = -1)
+                   x  = array(0,dim = c(mesh2$n,maxDt2)) #,logSigmaE = -1
+                   )
 
 #-----------------------------------------------------
 
