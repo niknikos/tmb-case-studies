@@ -8,6 +8,9 @@ library(animation) #use saveGIF()
 compile("./SPDExAR1_varying_stations/SPDExAR1_varying_stations.cpp")
 dyn.load(dynlib("./SPDExAR1_varying_stations/SPDExAR1_varying_stations"))
 
+compile("./SPDExAR1_varying_stations/SPDExAR1_varying_stations_Tweedie.cpp")
+dyn.load(dynlib("./SPDExAR1_varying_stations/SPDExAR1_varying_stations_Tweedie"))
+
 #Read data------------
 borders <-read.table("./SPDExAR1_varying_stations/Piemonte_borders.csv",header=TRUE,sep=",")
 Piemonte_data <-read.table("./SPDExAR1_varying_stations/Piemonte_data_byday.csv",header=TRUE,sep=",")
@@ -26,6 +29,11 @@ Piemonte_data[tweak_index,'UTMY'] <- Piemonte_data[tweak_index,'UTMY']+runif(len
 drop_stations_index <- sample.int(nrow(Piemonte_data), 1000)
 
 Piemonte_data <- Piemonte_data[-drop_stations_index,]
+
+# And replace some PM10 values with 0s for Tweedie
+zero_stations_index <- sample.int(nrow(Piemonte_data), 500)
+Piemonte_data[zero_stations_index,'PM10'] <- 0
+
 rownames(Piemonte_data) <- 1:nrow(Piemonte_data)
 #End of dataset tweaking------------
 
@@ -133,9 +141,11 @@ data <- list(logPM10 = Piemonte_data$logPM10,
 parameters <- list(beta      = c(3,rep(0,8)),
                    log_tau   = 4,
                    log_kappa = -4,
+                   log_p   = log(1.5),
+                   log_phi = 0,
                    rhoTan = 0,
-                   x  = array(0,dim = c(mesh$n,maxDt)),
-                   logSigmaE = -1)
+                   x  = array(0,dim = c(mesh$n,maxDt))#, logSigmaE = -1
+                   )
 
 #-----------------------------------------------------
 
