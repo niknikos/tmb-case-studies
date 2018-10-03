@@ -152,8 +152,8 @@ parameters <- list(beta      = c(3,rep(0,8)),
 #Fit model with SEPARABLE formulation-----------------
 startTime <- Sys.time()
 data$flag = 1
-#map=list(log_tau=factor(NA),log_kappa=factor(NA),rhoTan=factor(NA), logSigmaE=factor(NA), x=factor(rep(NA, length(array(0,dim = c(mesh$n,maxDt)))))) #shut down spatial field and AR1
-map=list()
+map=list(log_tau=factor(NA),log_kappa=factor(NA),rhoTan=factor(NA), x=factor(rep(NA, length(array(0,dim = c(mesh$n,maxDt)))))) #shut down spatial field and AR1
+#map=list()
 obj <- TMB::MakeADFun(data, parameters, random = c("x"),DLL = "SPDExAR1_varying_stations", map = map)
 obj <- normalize(obj, flag="flag")
 opt<-stats::nlminb(obj$par,obj$fn,obj$gr,control=list(eval.max=1000, iter.max=1000))
