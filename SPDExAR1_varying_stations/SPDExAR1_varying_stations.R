@@ -14,6 +14,9 @@ dyn.load(dynlib("./SPDExAR1_varying_stations/SPDExAR1_varying_stations_Tweedie")
 #Read data------------
 borders <-read.table("./SPDExAR1_varying_stations/Piemonte_borders.csv",header=TRUE,sep=",")
 Piemonte_data <-read.table("./SPDExAR1_varying_stations/Piemonte_data_byday.csv",header=TRUE,sep=",")
+#remove NAs
+Piemonte_data <- Piemonte_data[complete.cases(Piemonte_data),]
+
 # #Convert dates to POSIX
 Piemonte_data$Date <- as.Date(Piemonte_data$Date, format="%d/%m/%y")
 # #Order the Piemonte data by date
@@ -31,10 +34,11 @@ drop_stations_index <- sample.int(nrow(Piemonte_data), 1000)
 Piemonte_data <- Piemonte_data[-drop_stations_index,]
 
 # And replace some PM10 values with 0s for Tweedie
-zero_stations_index <- sample.int(nrow(Piemonte_data), 500)
+zero_stations_index <- sample.int(nrow(Piemonte_data), 1500)
 Piemonte_data[zero_stations_index,'PM10'] <- 0
-
+#hist(Piemonte_data$PM10)
 rownames(Piemonte_data) <- 1:nrow(Piemonte_data)
+
 #End of dataset tweaking------------
 
 #coordinates <-read.table("./SPDExAR1_varying_stations/coordinates.csv",header=TRUE,sep=",")
@@ -63,8 +67,11 @@ sd_covariates = apply(Piemonte_data[,3:10],2,sd)
 Piemonte_data[,3:10] =
   scale(Piemonte_data[,3:10],
         mean_covariates, sd_covariates)
-Piemonte_data$logPM10 = log(Piemonte_data$PM10)
-Piemonte_data$logPM10[which(is.na(Piemonte_data$logPM10))]=-999
+Piemonte_data$logPM10 = log1p(Piemonte_data$PM10) #pay attention to the -Inf values created
+#summary(Piemonte_data$logPM10)
+#hist(Piemonte_data$logPM10)
+Piemonte_data$logPM10[which(Piemonte_data$logPM10==0)]=-999
+
 #---------------------------------------------------------
 
 #Calcualtes the days from first observation---------------
@@ -125,42 +132,47 @@ X <- model.matrix( ~ 1 + Piemonte_data$A + Piemonte_data$UTMX + Piemonte_data$UT
                      Piemonte_data$PREC + Piemonte_data$EMI , data = Piemonte_data)
 
 #-----------------------------------------------------
-
+nll <- c('tweedie', 'normal')[2]
 #Define data and parameter object--------------------
-data <- list(logPM10 = Piemonte_data$logPM10,
-             #n_data = n_data,
-             #lengthDt = lengthDt,
-             maxDt = maxDt,
-             A = A,
-             #aLoc = aLoc,
-             X = as.matrix(X),
-             spdeMatrices = spdeMatrices,
-             time_index = as.integer(Piemonte_data$dt)
-)
-
-parameters <- list(beta      = c(3,rep(0,8)),
-                   log_tau   = 4,
-                   log_kappa = -4,
-                   log_p   = log(1.5),
-                   log_phi = 0,
-                   rhoTan = 0,
-                   x  = array(0,dim = c(mesh$n,maxDt))#, logSigmaE = -1
-                   )
+if(nll=='tweedie') {
+  Y <- Piemonte_data$PM10
+  selectedDLL <- "SPDExAR1_varying_stations_Tweedie"
+  data <- list(Y = Y, maxDt = maxDt, A = A, X = as.matrix(X),
+               spdeMatrices = spdeMatrices, time_index = as.integer(Piemonte_data$dt))   
+  
+  parameters <- list(beta = c(3,rep(0,8)), log_tau = 4, log_kappa = -2,
+                                  log_p   = log(1.2), log_phi = 3.080424, rhoTan = 0,
+                                  x  = array(0,dim = c(mesh$n,maxDt))
+               )             
+} else {
+  Y <- Piemonte_data$logPM10
+  selectedDLL <- "SPDExAR1_varying_stations"
+  data <- list(Y = Y, maxDt = maxDt, A = A, X = as.matrix(X),
+               spdeMatrices = spdeMatrices, time_index = as.integer(Piemonte_data$dt))   
+  
+  parameters <- list(beta = c(3,rep(0,8)), log_tau = 4, log_kappa = 0,
+                     logSigmaE = -1, rhoTan = 0,
+                     x  = array(0,dim = c(mesh$n,maxDt)))
+}
 
 #-----------------------------------------------------
 
 #Fit model with SEPARABLE formulation-----------------
 startTime <- Sys.time()
 data$flag = 1
-map=list(log_tau=factor(NA),log_kappa=factor(NA),rhoTan=factor(NA), x=factor(rep(NA, length(array(0,dim = c(mesh$n,maxDt)))))) #shut down spatial field and AR1
+
+map=list(log_tau=factor(NA), log_kappa=factor(NA), rhoTan=factor(NA),  
+         x=factor(rep(NA, length(array(0,dim = c(mesh$n,maxDt)))))) #shut down spatial field and AR1
 #map=list()
-obj <- TMB::MakeADFun(data, parameters, random = c("x"),DLL = "SPDExAR1_varying_stations", map = map)
+
+obj <- TMB::MakeADFun(data, parameters, random = c("x"),DLL = selectedDLL, map = map)
 obj <- normalize(obj, flag="flag")
-opt<-stats::nlminb(obj$par,obj$fn,obj$gr,control=list(eval.max=1000, iter.max=1000))
+opt<-stats::nlminb(obj$par,obj$fn,obj$gr)
 rep<- sdreport(obj)
 endTime <- Sys.time()
 timeUsed = endTime - startTime
 print(timeUsed)
+
 
 #-----------------------------------------------------
 
@@ -196,8 +208,27 @@ range = summary(rep,"report")[rangeIndex,]
 #   }
 # }, movie.name = "./SPDExAR1_varying_stations/SPDExAR1_varying_stations.gif")
 # #-----------------------------------------------------------
+#Fit a Gaussian GLM
+f1.ga.glm <- as.formula(paste0('logPM10 ~ A + UTMX + UTMY + WS + TEMP + HMIX + PREC + EMI'))
+library(mgcv)
+ga.glm1 <- mgcv::gam(f1.ga.glm, data = Piemonte_data[Piemonte_data$logPM10>-999,], method = 'ML')
+summary(ga.glm1)
 
-
+#--------------------------------
+#Fit a Tweedie GLM
+library(tweedie)
+library(statmod)
+f1.tw.glm <- as.formula(paste0('PM10 ~ A + UTMX + UTMY + WS + TEMP + HMIX + PREC + EMI'))
+# Tweedie formula
+#tw.prof <- tweedie.profile(f1.tw.glm, data = Piemonte_data, p.vec = seq(1.05, 1.95, 0.01))
+p.max <- 1.196939
+#p.max <- exp(0.4306059) #using the p estimeted by TMB I am getting the same predictive results from TMB and tw.glm1
+tw.glm1 <- glm(f1.tw.glm, 
+               data = Piemonte_data, 
+#               family = tweedie(var.power = tw.prof$p.max,
+               family = tweedie(var.power = p.max,
+                                link.power = 0))
+summary(tw.glm1)
 
 #--------------------------------
 data(PRborder)

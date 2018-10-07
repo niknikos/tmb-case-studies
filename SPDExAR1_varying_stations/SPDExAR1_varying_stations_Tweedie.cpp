@@ -9,7 +9,7 @@ Type objective_function<Type>::operator() ()
   using namespace Eigen;
 
   //Load data--------------
-  DATA_VECTOR(logPM10); //The response
+  DATA_VECTOR(Y); //The response
   DATA_MATRIX(X); //Design matrix for fixed effects
   //DATA_INTEGER(n_data); //Number of data points
   DATA_INTEGER(maxDt);//Number of intervalls in the AR1 structure
@@ -25,8 +25,9 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(beta); //Regression coefficients
   PARAMETER(log_tau); //Parameter in the Matern covariance function
   PARAMETER(log_kappa);//Parameter in the Matern covariance function
-  PARAMETER(rhoTan);//Parameter in the AR1 covariance function
-  PARAMETER_ARRAY(x);//The spatio-temporal latent field
+  //PARAMETER(rhoTan);//Parameter in the AR1 covariance function
+  //PARAMETER_ARRAY(x);//The spatio-temporal latent field
+  PARAMETER_VECTOR(x);//The spatio-temporal latent field
   //PARAMETER(logSigmaE);//Parameter for unexplained variation
   PARAMETER(log_p);//Parameter for the tweedie distribution
   PARAMETER(log_phi);//Parameter for the tweedie distribution
@@ -36,11 +37,12 @@ Type objective_function<Type>::operator() ()
   Type tau = exp(log_tau);
   Type kappa = exp(log_kappa);
   //Type sigmaE = exp(logSigmaE);
-  Type rho = tanh(rhoTan);
+  //Type rho = tanh(rhoTan);
   Type p = exp(log_p);//This is for the tweedie distribution
   Type phi = exp(log_phi);//This is for the tweedie distribution
   //------------------------
-
+  // Spatial interpolation
+  vector<Type> delta = (A*x)/tau;
   //Construct sparce precision matrix for latent field---
   SparseMatrix<Type> Q_s = Q_spde(spdeMatrices,kappa);
   //------------------------
@@ -48,45 +50,62 @@ Type objective_function<Type>::operator() ()
   //Calculates nll-------------------------------
   Type nll = 0;
 
-  //Add prior
-  nll = GMRF(Q_s,false)(x.col(0)*sqrt(1-rho*rho)); //By some reason the optimization fails if we do not remove the noramlizing constant
-  for(int i=1;i<maxDt;i++){
-    nll += GMRF(Q_s,false)(x.col(i)-rho*x.col(i-1));
+  nll = GMRF(Q, false)(x); 
+  
+  // Return un-normalized density on request
+  if (flag == 0) return nll;
+  
+  vector<Type> mu(Y.size());
+  mu = exp(X*beta+delta); //includes intercept!!!
+  //mu = exp(Xsplines*betas_splines + delta); //includes intercept!!!
+  
+  REPORT(mu);
+  //Tweedie likelihood
+  for(int i=0; i<Y.size(); i++){ 
+    nll -= dtweedie(Y(i), mu(i), phi, p, true);
   }
-//  nll = SEPARABLE(AR1(rho), GMRF(Q_s))(x); //Alternative approach with use of seperability, includes normalizing constant here because TMB seems to be both faster and more stable when including it.
-
-  if (flag == 0) return nll; // Return un-normalized density on request
-
-  vector<Type> eta = X*beta;
-
-  // int counter = 0;
-  for(int i = 0; i<eta.size(); ++i){
-  // vector<Type> gammaDt = (A*vector<Type> (x.col(i)));
-  //   for(int j =0; (j<lengthDt & counter <n_data); ++j){
-      // Type mu;
-    vector<Type> tmp1 = A.row(i);
-    vector<Type> tmp2 = x.col(time_index(i));
-    //Type mu = eta(i);
-    for(int j = 0; j<tmp2.size(); ++j){
-      eta(i)+=tmp1(j)*tmp2(j)/tau;
-    }
-      // mu = eta(counter) + gammaDt(CppAD::Integer(aLoc(j)))/tau;
-      // mu = eta(i) + (A.row(i)*vector<Type> (x.col(time_index(i))))/tau;
-      // mu = eta(i) + tmp3/tau;
-      // if(logPM10(counter)>(-99)){
-      //    nll -= dnorm(logPM10(counter), mu, sigmaE,true);
-      //}
-      // if(logPM10(i)>(-99)){
-      //     nll -= dnorm(logPM10(i), eta(i), sigmaE,true);
-      //  }
-      nll -= dtweedie(logPM10(i), eta(i), phi, p, true);
-      // counter++;
-    }
+  
+  
+  
+//   //Add prior
+//   nll = GMRF(Q_s,false)(x.col(0)*sqrt(1-rho*rho)); //By some reason the optimization fails if we do not remove the noramlizing constant
+//   for(int i=1;i<maxDt;i++){
+//     nll += GMRF(Q_s,false)(x.col(i)-rho*x.col(i-1));
+//   }
+// //  nll = SEPARABLE(AR1(rho), GMRF(Q_s))(x); //Alternative approach with use of seperability, includes normalizing constant here because TMB seems to be both faster and more stable when including it.
+// 
+//   if (flag == 0) return nll; // Return un-normalized density on request
+// 
+//   vector<Type> eta = X*beta;
+// 
+//   // int counter = 0;
+//   for(int i = 0; i<eta.size(); ++i){
+//   // vector<Type> gammaDt = (A*vector<Type> (x.col(i)));
+//   //   for(int j =0; (j<lengthDt & counter <n_data); ++j){
+//       // Type mu;
+//     vector<Type> tmp1 = A.row(i);
+//     vector<Type> tmp2 = x.col(time_index(i));
+//     //Type mu = eta(i);
+//     for(int j = 0; j<tmp2.size(); ++j){
+//       eta(i)+=tmp1(j)*tmp2(j)/tau;
+//     }
+//       // mu = eta(counter) + gammaDt(CppAD::Integer(aLoc(j)))/tau;
+//       // mu = eta(i) + (A.row(i)*vector<Type> (x.col(time_index(i))))/tau;
+//       // mu = eta(i) + tmp3/tau;
+//       // if(logPM10(counter)>(-99)){
+//       //    nll -= dnorm(logPM10(counter), mu, sigmaE,true);
+//       //}
+//       // if(logPM10(i)>(-99)){
+//       //     nll -= dnorm(logPM10(i), eta(i), sigmaE,true);
+//       //  }
+//       nll -= dtweedie(Y(i), eta(i), phi, p, true);
+//       // counter++;
+//     }
   
   //---------------------------------------------
 
   //Report what we want to report----------------
-  REPORT(eta);
+  //REPORT(eta);
   Type range = sqrt(8)/kappa;   //Distance at which correlation has dropped to 0.1, see p. 4 in Lindgren et al. (2011)
   ADREPORT(range);
   //---------------------------------------------

@@ -9,7 +9,7 @@ Type objective_function<Type>::operator() ()
   using namespace Eigen;
 
   //Load data--------------
-  DATA_VECTOR(logPM10); //The response
+  DATA_VECTOR(Y); //The response
   DATA_MATRIX(X); //Design matrix for fixed effects
   //DATA_INTEGER(n_data); //Number of data points
   DATA_INTEGER(maxDt);//Number of intervalls in the AR1 structure
@@ -27,18 +27,18 @@ Type objective_function<Type>::operator() ()
   PARAMETER(log_kappa);//Parameter in the Matern covariance function
   PARAMETER(rhoTan);//Parameter in the AR1 covariance function
   PARAMETER_ARRAY(x);//The spatio-temporal latent field
-  //PARAMETER(logSigmaE);//Parameter for unexplained variation
-  PARAMETER(log_p);//Parameter for the tweedie distribution
-  PARAMETER(log_phi);//Parameter for the tweedie distribution
+  PARAMETER(logSigmaE);//Parameter for unexplained variation
+  //PARAMETER(log_p);//Parameter for the tweedie distribution
+  //PARAMETER(log_phi);//Parameter for the tweedie distribution
   //------------------------
 
   //Transform variables-----
   Type tau = exp(log_tau);
   Type kappa = exp(log_kappa);
-  //Type sigmaE = exp(logSigmaE);
+  Type sigmaE = exp(logSigmaE);
   Type rho = tanh(rhoTan);
-  Type p = exp(log_p);//This is for the tweedie distribution
-  Type phi = exp(log_phi);//This is for the tweedie distribution
+  //Type p = exp(log_p);//This is for the tweedie distribution
+  //Type phi = exp(log_phi);//This is for the tweedie distribution
   //------------------------
 
   //Construct sparce precision matrix for latent field---
@@ -76,10 +76,10 @@ Type objective_function<Type>::operator() ()
       // if(logPM10(counter)>(-99)){
       //    nll -= dnorm(logPM10(counter), mu, sigmaE,true);
       // }
-      // if(logPM10(i)>(-99)){
-      //     nll -= dnorm(logPM10(i), eta(i), sigmaE,true);
-      //  }
-      nll -= dtweedie(logPM10(i), eta(i), phi, p, true);
+      if(Y(i)>(-99)){
+          nll -= dnorm(Y(i), eta(i), sigmaE,true);
+       }
+      //nll -= dtweedie(Y(i), eta(i), phi, p, true);
       // counter++;
     }
   
